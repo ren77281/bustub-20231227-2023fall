@@ -12,33 +12,58 @@
 
 #pragma once
 
-#include <limits>
+#include <set>
 #include <list>
 #include <mutex>  // NOLINT
+#include <ctime>
+#include <cmath>
+#include <chrono>
+#include <limits>
+#include <memory>
 #include <unordered_map>
-#include <vector>
 
 #include "common/config.h"
 #include "common/macros.h"
 
 namespace bustub {
 
+const long long INF = std::numeric_limits<long long>::max();
+
 enum class AccessType { Unknown = 0, Lookup, Scan, Index };
 
 class LRUKNode {
- private:
+ public:
   /** History of last seen K timestamps of this page. Least recent timestamp stored in front. */
   // Remove maybe_unused if you start using them. Feel free to change the member variables as you want.
+  LRUKNode(long long current_timestamp_, size_t k, frame_id_t fid);
+  std::list<long long> history_;
+  size_t k_;
+  long long k_instance_;
+  frame_id_t fid_;
+  bool is_evictable_{false};
+};
 
-  [[maybe_unused]] std::list<size_t> history_;
-  [[maybe_unused]] size_t k_;
-  [[maybe_unused]] frame_id_t fid_;
-  [[maybe_unused]] bool is_evictable_{false};
+// map的比较器
+struct Compare {
+  bool operator()(const std::shared_ptr<LRUKNode> l, const std::shared_ptr<LRUKNode> r) const {
+    long long l_last_time = l->history_.front(), r_last_time = r->history_.front();
+    long long l_k_instance = l->k_instance_, r_k_instance = r->k_instance_;
+    if (l->history_.size() >= l->k_ && r->history_.size() >= r->k_) {
+      if (l_k_instance != r_k_instance) {
+        return l_k_instance > r_k_instance;
+      }
+      return l_last_time < r_last_time;
+    } else if (l->history_.size() >= l->k_) {
+      return false;
+    } else if (r->history_.size() >= r->k_) {
+      return true;
+    } else {
+      return l_last_time < r_last_time;
+    }
+  }
 };
 
 /**
- * LRUKReplacer implements the LRU-k replacement policy.
- *
  * The LRU-k algorithm evicts a frame whose backward k-distance is maximum
  * of all frames. Backward k-distance is computed as the difference in time between
  * current timestamp and the timestamp of kth previous access.
@@ -49,6 +74,7 @@ class LRUKNode {
  */
 class LRUKReplacer {
  public:
+
   /**
    *
    * TODO(P1): Add implementation
@@ -83,7 +109,7 @@ class LRUKReplacer {
    * @param[out] frame_id id of frame that is evicted.
    * @return true if a frame is evicted successfully, false if no frames can be evicted.
    */
-  auto Evict(frame_id_t *frame_id) -> bool;
+  auto Evict(frame_id_t *frame_id_ptr) -> bool;
 
   /**
    * TODO(P1): Add implementation
@@ -146,16 +172,14 @@ class LRUKReplacer {
    * @return size_t
    */
   auto Size() -> size_t;
-
  private:
-  // TODO(student): implement me! You can replace these member variables as you like.
-  // Remove maybe_unused if you start using them.
-  [[maybe_unused]] std::unordered_map<frame_id_t, LRUKNode> node_store_;
-  [[maybe_unused]] size_t current_timestamp_{0};
-  [[maybe_unused]] size_t curr_size_{0};
-  [[maybe_unused]] size_t replacer_size_;
-  [[maybe_unused]] size_t k_;
-  [[maybe_unused]] std::mutex latch_;
+  std::unordered_map<frame_id_t, std::shared_ptr<LRUKNode>> node_store_;
+  std::set<std::shared_ptr<LRUKNode>, Compare> node_evict_;
+  long long current_timestamp_{0};
+  size_t curr_size_{0};
+  size_t replacer_size_;
+  size_t k_;
+  std::mutex latch_;
 };
 
 }  // namespace bustub
