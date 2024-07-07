@@ -12,14 +12,14 @@
 
 #pragma once
 
-#include <set>
-#include <list>
-#include <mutex>  // NOLINT
-#include <ctime>
 #include <cmath>
-#include <chrono>
+#include <ctime>
+#include <iostream>
 #include <limits>
+#include <list>
 #include <memory>
+#include <mutex>  // NOLINT
+#include <set>
 #include <unordered_map>
 
 #include "common/config.h"
@@ -27,7 +27,7 @@
 
 namespace bustub {
 
-const long long INF = std::numeric_limits<long long>::max();
+const int64_t NEGINF = std::numeric_limits<int64_t>::min();
 
 enum class AccessType { Unknown = 0, Lookup, Scan, Index };
 
@@ -35,31 +35,22 @@ class LRUKNode {
  public:
   /** History of last seen K timestamps of this page. Least recent timestamp stored in front. */
   // Remove maybe_unused if you start using them. Feel free to change the member variables as you want.
-  LRUKNode(long long current_timestamp_, size_t k, frame_id_t fid);
-  std::list<long long> history_;
+  LRUKNode(int64_t current_timestamp_, size_t k, frame_id_t fid);
+  std::list<int64_t> history_;
   size_t k_;
-  long long k_instance_;
+  int64_t earliest_time_;
+  int64_t k_distance_;
   frame_id_t fid_;
   bool is_evictable_{false};
 };
 
-// map的比较器
+/** node_evict的比较器 */
 struct Compare {
-  bool operator()(const std::shared_ptr<LRUKNode> l, const std::shared_ptr<LRUKNode> r) const {
-    long long l_last_time = l->history_.front(), r_last_time = r->history_.front();
-    long long l_k_instance = l->k_instance_, r_k_instance = r->k_instance_;
-    if (l->history_.size() >= l->k_ && r->history_.size() >= r->k_) {
-      if (l_k_instance != r_k_instance) {
-        return l_k_instance > r_k_instance;
-      }
-      return l_last_time < r_last_time;
-    } else if (l->history_.size() >= l->k_) {
-      return false;
-    } else if (r->history_.size() >= r->k_) {
-      return true;
-    } else {
-      return l_last_time < r_last_time;
+  auto operator()(const std::shared_ptr<LRUKNode> &l, const std::shared_ptr<LRUKNode> &r) const -> bool {
+    if (l->k_distance_ != r->k_distance_) {
+      return l->k_distance_ < r->k_distance_;
     }
+    return l->earliest_time_ < r->earliest_time_;
   }
 };
 
@@ -74,7 +65,6 @@ struct Compare {
  */
 class LRUKReplacer {
  public:
-
   /**
    *
    * TODO(P1): Add implementation
@@ -172,11 +162,11 @@ class LRUKReplacer {
    * @return size_t
    */
   auto Size() -> size_t;
+
  private:
   std::unordered_map<frame_id_t, std::shared_ptr<LRUKNode>> node_store_;
   std::set<std::shared_ptr<LRUKNode>, Compare> node_evict_;
-  long long current_timestamp_{0};
-  size_t curr_size_{0};
+  int64_t current_timestamp_{0};
   size_t replacer_size_;
   size_t k_;
   std::mutex latch_;
