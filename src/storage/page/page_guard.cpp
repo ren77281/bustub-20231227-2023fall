@@ -1,30 +1,120 @@
 #include "storage/page/page_guard.h"
+#include <utility>
 #include "buffer/buffer_pool_manager.h"
 
 namespace bustub {
 
-BasicPageGuard::BasicPageGuard(BasicPageGuard &&that) noexcept {}
+/** 进行资源转移即可 */
+BasicPageGuard::BasicPageGuard(BasicPageGuard &&that) noexcept {
+  // std::cout << "BasicPageGuard::move construct\n";
+  std::swap(this->page_, that.page_);
+  std::swap(this->bpm_, that.bpm_);
+  std::swap(this->is_dirty_, that.is_dirty_);
+}
 
-void BasicPageGuard::Drop() {}
+/** 手动放弃protect对象的所有权 */
+void BasicPageGuard::Drop() {
+  // std::cout << "BasicPageGuard::Drop\n";
+  if (this->page_ != nullptr) {
+    this->bpm_->UnpinPage(this->PageId(), this->is_dirty_);
+    this->page_ = nullptr;
+    this->bpm_ = nullptr;
+    this->is_dirty_ = false;
+  }
+}
 
-auto BasicPageGuard::operator=(BasicPageGuard &&that) noexcept -> BasicPageGuard & { return *this; }
+/** 与移动构造不同，移动赋值需要先放弃当前protect对象的所有权，再进行资源转移 */
+auto BasicPageGuard::operator=(BasicPageGuard &&that) noexcept -> BasicPageGuard & {
+  if (this != &that) {
+    // std::cout << "BasicPageGuard::operator=\n";
+    this->Drop();
+    std::swap(this->page_, that.page_);
+    std::swap(this->bpm_, that.bpm_);
+    std::swap(this->is_dirty_, that.is_dirty_);
+  }
+  return *this;
+}
 
-BasicPageGuard::~BasicPageGuard(){};  // NOLINT
+BasicPageGuard::~BasicPageGuard() { this->Drop(); }
 
-ReadPageGuard::ReadPageGuard(ReadPageGuard &&that) noexcept = default;
+auto BasicPageGuard::UpgradeRead() -> ReadPageGuard {
+  // std::cout << "BasicPageGuard::UpgradeRead\n";
+  if (this->page_ == nullptr) {
+    throw Exception("page_ is nullptr\n");
+  }
+  this->page_->RLatch();
+  ReadPageGuard rpg(this->bpm_, this->page_);
+  this->page_ = nullptr;
+  this->bpm_ = nullptr;
+  return rpg;
+}
 
-auto ReadPageGuard::operator=(ReadPageGuard &&that) noexcept -> ReadPageGuard & { return *this; }
+auto BasicPageGuard::UpgradeWrite() -> WritePageGuard {
+  // std::cout << "BasicPageGuard::UpgradeWrite\n";
+  if (this->page_ = = nullptr) {
+    throw Exception("page_ is nullptr\n");
+  }
+  this->page_->WLatch();
+  WritePageGuard wpg(this->bpm_, this->page_);
+  this->page_ = nullptr;
+  this->bpm_ = nullptr;
+  return wpg;
+}
 
-void ReadPageGuard::Drop() {}
+ReadPageGuard::ReadPageGuard(ReadPageGuard &&that) noexcept {
+  std::swap(this->guard_.page_, that.guard_.page_);
+  std::swap(this->guard_.bpm_, that.guard_.bpm_);
+  std::swap(this->guard_.is_dirty_, that.guard_.is_dirty_);
+}
 
-ReadPageGuard::~ReadPageGuard() {}  // NOLINT
+auto ReadPageGuard::operator=(ReadPageGuard &&that) noexcept -> ReadPageGuard & {
+  // std::cout << "ReadPageGuard::operator=\n";
+  if (this != &that) {
+    this->Drop();
+    std::swap(this->guard_.page_, that.guard_.page_);
+    std::swap(this->guard_.bpm_, that.guard_.bpm_);
+    std::swap(this->guard_.is_dirty_, that.guard_.is_dirty_);
+  }
+  return *this;
+}
 
-WritePageGuard::WritePageGuard(WritePageGuard &&that) noexcept = default;
+void ReadPageGuard::Drop() {
+  // std::cout << "ReadPageGuard::Drop\n";
+  if (this->guard_.page_ != nullptr) {
+    this->guard_.page_->RUnlatch();
+    this->guard_.Drop();
+  }
+}
 
-auto WritePageGuard::operator=(WritePageGuard &&that) noexcept -> WritePageGuard & { return *this; }
+ReadPageGuard::~ReadPageGuard() { this->Drop(); }
 
-void WritePageGuard::Drop() {}
+WritePageGuard::WritePageGuard(WritePageGuard &&that) noexcept {
+  std::swap(this->guard_.page_, that.guard_.page_);
+  std::swap(this->guard_.bpm_, that.guard_.bpm_);
+  std::swap(this->guard_.is_dirty_, that.guard_.is_dirty_);
+}
 
-WritePageGuard::~WritePageGuard() {}  // NOLINT
+auto WritePageGuard::operator=(WritePageGuard &&that) noexcept -> WritePageGuard & {
+  // std::cout << "WritePageGuard::operator=\n";
+  if (this != &that) {
+    this->Drop();
+    std::swap(this->guard_.page_, that.guard_.page_);
+    std::swap(this->guard_.bpm_, that.guard_.bpm_);
+    std::swap(this->guard_.is_dirty_, that.guard_.is_dirty_);
+  }
+  return *this;
+}
+
+void WritePageGuard::Drop() {
+  // std::cout << "WritePageGuard::Drop\n";
+  if (this->guard_.page_ != nullptr) {
+    this->guard_.page_->WUnlatch();
+    /** 因为获取的Page类型是Write，所以设置脏位 */
+    this->guard_.is_dirty_ = true;
+    this->guard_.Drop();
+  }
+}
+
+WritePageGuard::~WritePageGuard() { this->Drop(); }
 
 }  // namespace bustub

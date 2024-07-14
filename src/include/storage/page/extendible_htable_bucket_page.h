@@ -74,7 +74,7 @@ class ExtendibleHTableBucketPage {
    * @param key key to insert
    * @param value value to insert
    * @param cmp the comparator to use
-   * @return true if inserted, false if bucket is full or the same key is already present
+   * @return true if  inserted, false if bucket is full or the same key is already present
    */
   auto Insert(const KeyType &key, const ValueType &value, const KeyComparator &cmp) -> bool;
 

@@ -14,6 +14,7 @@
 #include "buffer/buffer_pool_manager.h"
 #include "common/config.h"
 #include "common/exception.h"
+#include "common/logger.h"
 #include "storage/disk/disk_scheduler.h"
 #include "storage/page/page_guard.h"
 
@@ -249,6 +250,7 @@ auto BufferPoolManager::DeletePage(page_id_t page_id) -> bool {
   /** 不能删除被pin住的页 */
   Page *page_ptr = this->pages_ + frame_id;
   if (page_ptr->GetPinCount() != 0) {
+    LOG_DEBUG("删除了被pin住的页");
     return false;
   }
   this->replacer_->Remove(frame_id);
@@ -266,12 +268,44 @@ auto BufferPoolManager::DeletePage(page_id_t page_id) -> bool {
 
 auto BufferPoolManager::AllocatePage() -> page_id_t { return next_page_id_++; }
 
-auto BufferPoolManager::FetchPageBasic(page_id_t page_id) -> BasicPageGuard { return {this, nullptr}; }
+auto BufferPoolManager::FetchPageBasic(page_id_t page_id) -> BasicPageGuard {
+  // std::cout << "FetchPageBasic: " << page_id << '\n';
+  auto page_ptr = this->FetchPage(page_id);
+  if (page_ptr == nullptr) {
+    /** 如果页不在BufferPool（在磁盘，被删除或者不存在，返回无效对象 */
+    return {nullptr, nullptr};
+  }
+  // std::cout << "FetchPageBasic Done\n";
+  return {this, page_ptr};
+}
 
-auto BufferPoolManager::FetchPageRead(page_id_t page_id) -> ReadPageGuard { return {this, nullptr}; }
+auto BufferPoolManager::FetchPageRead(page_id_t page_id) -> ReadPageGuard {
+  // std::cout << "FetchPageRead: " << page_id << '\n';
+  BasicPageGuard bpg = this->FetchPageBasic(page_id);
+  if (!bpg) {
+    return {nullptr, nullptr};
+  }
+  // std::cout << "FetchPageRead Done" << page_id << '\n';
+  return bpg.UpgradeRead();
+}
 
-auto BufferPoolManager::FetchPageWrite(page_id_t page_id) -> WritePageGuard { return {this, nullptr}; }
+auto BufferPoolManager::FetchPageWrite(page_id_t page_id) -> WritePageGuard {
+  // std::cout << "FetchPageWrite: " << page_id << '\n';
+  BasicPageGuard bpg = this->FetchPageBasic(page_id);
+  if (!bpg) {
+    return {nullptr, nullptr};
+  }
+  // std::cout << "FetchPageWrite Done" << page_id << '\n';
+  return bpg.UpgradeWrite();
+}
 
-auto BufferPoolManager::NewPageGuarded(page_id_t *page_id) -> BasicPageGuard { return {this, nullptr}; }
+auto BufferPoolManager::NewPageGuarded(page_id_t *page_id) -> BasicPageGuard {
+  Page *page_ptr = this->NewPage(page_id);
+  if (page_ptr == nullptr) {
+    return {nullptr, nullptr};
+  }
+  // std::cout << "NewPageGuarded: " << *page_id << '\n';
+  return {this, page_ptr};
+}
 
 }  // namespace bustub

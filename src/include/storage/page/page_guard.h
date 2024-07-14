@@ -85,6 +85,8 @@ class BasicPageGuard {
 
   auto PageId() -> page_id_t { return page_->GetPageId(); }
 
+  explicit operator bool() const { return this->page_ != nullptr; }
+
   auto GetData() -> const char * { return page_->GetData(); }
 
   template <class T>
@@ -159,6 +161,8 @@ class ReadPageGuard {
 
   auto PageId() -> page_id_t { return guard_.PageId(); }
 
+  explicit operator bool() const { return this->guard_.page_ != nullptr; }
+
   auto GetData() -> const char * { return guard_.GetData(); }
 
   template <class T>
@@ -218,6 +222,8 @@ class WritePageGuard {
   ~WritePageGuard();
 
   auto PageId() -> page_id_t { return guard_.PageId(); }
+
+  explicit operator bool() const { return this->guard_.page_ != nullptr; }
 
   auto GetData() -> const char * { return guard_.GetData(); }
 
