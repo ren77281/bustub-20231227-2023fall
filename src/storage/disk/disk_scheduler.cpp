@@ -18,7 +18,7 @@ namespace bustub {
 
 DiskScheduler::DiskScheduler(DiskManager *disk_manager) : disk_manager_(disk_manager) {
   // Spawn the background thread
-  background_thread_.emplace([&] { StartWorkerThread(); });
+    
 }
 
 DiskScheduler::~DiskScheduler() {

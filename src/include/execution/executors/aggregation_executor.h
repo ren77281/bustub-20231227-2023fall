@@ -38,9 +38,7 @@ class SimpleAggregationHashTable {
    * @param agg_exprs the aggregation expressions
    * @param agg_types the types of aggregations
    */
-  SimpleAggregationHashTable(const std::vector<AbstractExpressionRef> &agg_exprs,
-                             const std::vector<AggregationType> &agg_types)
-      : agg_exprs_{agg_exprs}, agg_types_{agg_types} {}
+  explicit SimpleAggregationHashTable(const std::vector<AggregationType> &agg_types) : agg_types_{agg_types} {}
 
   /** @return The initial aggregate value for this aggregation executor */
   auto GenerateInitialAggregateValue() -> AggregateValue {
@@ -71,14 +69,42 @@ class SimpleAggregationHashTable {
    * @param input The input value
    */
   void CombineAggregateValues(AggregateValue *result, const AggregateValue &input) {
-    for (uint32_t i = 0; i < agg_exprs_.size(); i++) {
-      switch (agg_types_[i]) {
-        case AggregationType::CountStarAggregate:
-        case AggregationType::CountAggregate:
-        case AggregationType::SumAggregate:
-        case AggregationType::MinAggregate:
-        case AggregationType::MaxAggregate:
-          break;
+    for (uint32_t i = 0; i < agg_types_.size(); i++) {
+      /** null值不参与运算，且需要特判初值为null，无法进行比较的情况 */
+      if (!input.aggregates_[i].IsNull()) {
+        switch (agg_types_[i]) {
+          case AggregationType::CountStarAggregate:
+            result->aggregates_[i] = result->aggregates_[i].Add(ValueFactory::GetIntegerValue(1));
+            break;
+          case AggregationType::CountAggregate:
+            if (result->aggregates_[i].IsNull()) {
+              result->aggregates_[i] = ValueFactory::GetIntegerValue(1);
+            } else {
+              result->aggregates_[i] = result->aggregates_[i].Add(ValueFactory::GetIntegerValue(1));
+            }
+            break;
+          case AggregationType::SumAggregate:
+            if (result->aggregates_[i].IsNull()) {
+              result->aggregates_[i] = input.aggregates_[i];
+            } else {
+              result->aggregates_[i] = result->aggregates_[i].Add(input.aggregates_[i]);
+            }
+            break;
+          case AggregationType::MinAggregate:
+            if (result->aggregates_[i].IsNull()) {
+              result->aggregates_[i] = input.aggregates_[i];
+            } else {
+              result->aggregates_[i] = result->aggregates_[i].Min(input.aggregates_[i]);
+            }
+            break;
+          case AggregationType::MaxAggregate:
+            if (result->aggregates_[i].IsNull()) {
+              result->aggregates_[i] = input.aggregates_[i];
+            } else {
+              result->aggregates_[i] = result->aggregates_[i].Max(input.aggregates_[i]);
+            }
+            break;
+        }
       }
     }
   }
@@ -135,11 +161,12 @@ class SimpleAggregationHashTable {
   /** @return Iterator to the end of the hash table */
   auto End() -> Iterator { return Iterator{ht_.cend()}; }
 
+  /** @return hash table is empty? */
+  auto Empty() -> bool { return ht_.empty(); }
+
  private:
   /** The hash table is just a map from aggregate keys to aggregate values */
   std::unordered_map<AggregateKey, AggregateValue> ht_{};
-  /** The aggregate expressions that we have */
-  const std::vector<AbstractExpressionRef> &agg_exprs_;
   /** The types of aggregations that we have */
   const std::vector<AggregationType> &agg_types_;
 };
@@ -177,7 +204,6 @@ class AggregationExecutor : public AbstractExecutor {
   auto GetChildExecutor() const -> const AbstractExecutor *;
 
  private:
-  /** @return The tuple as an AggregateKey */
   auto MakeAggregateKey(const Tuple *tuple) -> AggregateKey {
     std::vector<Value> keys;
     for (const auto &expr : plan_->GetGroupBys()) {
@@ -198,14 +224,12 @@ class AggregationExecutor : public AbstractExecutor {
  private:
   /** The aggregation plan node */
   const AggregationPlanNode *plan_;
-
   /** The child executor that produces tuples over which the aggregation is computed */
   std::unique_ptr<AbstractExecutor> child_executor_;
-
   /** Simple aggregation hash table */
-  // TODO(Student): Uncomment SimpleAggregationHashTable aht_;
-
+  SimpleAggregationHashTable aht_;
   /** Simple aggregation hash table iterator */
-  // TODO(Student): Uncomment SimpleAggregationHashTable::Iterator aht_iterator_;
+  SimpleAggregationHashTable::Iterator aht_iterator_;
+  bool zero_flag_{false};
 };
 }  // namespace bustub

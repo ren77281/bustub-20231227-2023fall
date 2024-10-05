@@ -44,8 +44,11 @@ class IndexScanPlanNode : public AbstractPlanNode {
 
   auto GetType() const -> PlanType override { return PlanType::IndexScan; }
 
-  /** @return the identifier of the table that should be scanned */
+  /** @return the identifier of the index that should be scanned */
   auto GetIndexOid() const -> index_oid_t { return index_oid_; }
+
+  /** @return the identifier of the table that should be scanned */
+  auto GetTableOid() const -> table_oid_t { return table_oid_; }
 
   BUSTUB_PLAN_NODE_CLONE_WITH_CHILDREN(IndexScanPlanNode);
 

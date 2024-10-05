@@ -22,9 +22,7 @@ LRUKNode::LRUKNode(int64_t current_timestamp_, size_t k, frame_id_t fid)
   history_.push_front(current_timestamp_);
 }
 
-LRUKReplacer::LRUKReplacer(size_t num_frames, size_t k) : replacer_size_(num_frames), k_(k) {
-  // std::cout << "replacer_size_和k_:" << ' ' << replacer_size_ << ' ' << k_ << '\n';
-}
+LRUKReplacer::LRUKReplacer(size_t num_frames, size_t k) : replacer_size_(num_frames), k_(k) {}
 
 auto LRUKReplacer::Evict(frame_id_t *frame_id_ptr) -> bool {
   std::lock_guard<std::mutex> guard(this->latch_);
@@ -36,7 +34,6 @@ auto LRUKReplacer::Evict(frame_id_t *frame_id_ptr) -> bool {
   *frame_id_ptr = evict_node_ptr->fid_;
   this->node_evict_.erase(it);
   this->node_store_.erase(*frame_id_ptr);
-  // std::cout << "Evict:" << *frame_id_ptr << '\n';
   return true;
 }
 
@@ -61,7 +58,6 @@ void LRUKReplacer::RecordAccess(frame_id_t frame_id, [[maybe_unused]] AccessType
     }
     if (history.size() == k_) {
       node_ptr->k_distance_ = history.back();
-      // std::cout << "k_distance: " << node_ptr->k_distance_ << '\n';
     }
     /** 如果该帧是可驱逐的，由于set不会根据元素的变化维护自身结构，所以需要将元素先拿出，修改后再插入 */
     if (node_ptr->is_evictable_) {
@@ -71,7 +67,6 @@ void LRUKReplacer::RecordAccess(frame_id_t frame_id, [[maybe_unused]] AccessType
     auto new_node = std::make_shared<LRUKNode>(current_timestamp_, k_, frame_id);
     this->node_store_[frame_id] = new_node;
   }
-  // std::cout << "access:" << frame_id << ' ' << this->current_timestamp_ << "\n";
 }
 
 void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {
@@ -99,7 +94,6 @@ void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {
       this->node_evict_.erase(node_ptr);
     }
   }
-  // std::cout << "frame_id: " << frame_id << " 的evictable被设置为 " << set_evictable << '\n';
 }
 
 void LRUKReplacer::Remove(frame_id_t frame_id) {
@@ -121,7 +115,6 @@ void LRUKReplacer::Remove(frame_id_t frame_id) {
   }
   this->node_evict_.erase(node_ptr);
   this->node_store_.erase(it);
-  // std::cout << "删除: " << frame_id << '\n';
 }
 
 auto LRUKReplacer::Size() -> size_t {

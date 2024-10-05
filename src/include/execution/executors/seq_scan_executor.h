@@ -17,6 +17,7 @@
 #include "execution/executor_context.h"
 #include "execution/executors/abstract_executor.h"
 #include "execution/plans/seq_scan_plan.h"
+#include "storage/table/table_iterator.h"
 #include "storage/table/tuple.h"
 
 namespace bustub {
@@ -50,5 +51,10 @@ class SeqScanExecutor : public AbstractExecutor {
  private:
   /** The sequential scan plan node to be executed */
   const SeqScanPlanNode *plan_;
+  TableIterator it_;
+  /** 保存第一次扫描的结果 */
+  std::vector<std::pair<Tuple, RID>> results_;
+  std::vector<std::pair<Tuple, RID>>::const_iterator results_it_;
+  bool is_first_{true};
 };
 }  // namespace bustub

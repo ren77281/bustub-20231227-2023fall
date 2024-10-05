@@ -43,7 +43,7 @@ auto ExtendibleHTableDirectoryPage::GetGlobalDepthMask() const -> uint32_t {
 
 auto ExtendibleHTableDirectoryPage::GetLocalDepthMask(uint32_t bucket_idx) const -> uint32_t {
   if (bucket_idx >= this->Size()) {
-    LOG_ERROR("invalid bucket_idx\n");
+    LOG_ERROR("invalid bucket_idx");
     return 0;
   }
   // std::cout << "-------- Directory GetLocalDepthMask: " << (1 << this->local_depths_[bucket_idx]) - 1 <<
@@ -59,7 +59,8 @@ auto ExtendibleHTableDirectoryPage::HashToBucketIndex(uint32_t hash) const -> ui
 
 auto ExtendibleHTableDirectoryPage::GetBucketPageId(uint32_t bucket_idx) const -> page_id_t {
   if (bucket_idx >= this->Size()) {
-    LOG_ERROR("invalid bucket_idx\n");
+    std::cout << Size() << '\n';
+    LOG_ERROR("invalid bucket_idx, %d", bucket_idx);
     return INVALID_PAGE_ID;
   }
   // std::cout << "-------- Directory GetBucketPageId: " << bucket_idx << "--------\n";
@@ -67,7 +68,8 @@ auto ExtendibleHTableDirectoryPage::GetBucketPageId(uint32_t bucket_idx) const -
 }
 
 void ExtendibleHTableDirectoryPage::SetBucketPageId(uint32_t bucket_idx, page_id_t bucket_page_id) {
-  if (bucket_idx >= this->MaxSize()) {
+  if (bucket_idx >= this->Size()) {
+    std::cout << Size() << '\n';
     throw Exception("invalid bucket_idx\n");
   }
   // std::cout << "-------- Directory SetBucketPageId: " << bucket_idx << ' ' << bucket_page_id << "--------\n";
@@ -81,7 +83,7 @@ auto ExtendibleHTableDirectoryPage::GetSplitImageIndex(uint32_t bucket_idx) cons
   }
   // std::cout << "-------- Directory GetSplitImageIndex: " << bucket_idx << "--------\n";
   if (this->local_depths_[bucket_idx] == 0) {
-    return INVALID_PAGE_ID;
+    return -1;
   }
   return bucket_idx ^ (1 << (this->local_depths_[bucket_idx] - 1));
 }
@@ -91,7 +93,7 @@ auto ExtendibleHTableDirectoryPage::GetGlobalDepth() const -> uint32_t { return 
 /** 全局深度的增加将导致local_depths_和bucket_page_ids_的增加，此时需要维护分裂元素的信息 */
 void ExtendibleHTableDirectoryPage::IncrGlobalDepth() {
   if (this->global_depth_ == this->max_depth_) {
-    LOG_ERROR("The current size is already the maximum size\n");
+    LOG_ERROR("The current size is already the maximum size");
     return;
   }
   // std::cout << "Directory IncrGlobalDepth, global_depth:" << this->global_depth_ << "\n";
@@ -137,7 +139,8 @@ void ExtendibleHTableDirectoryPage::SetLocalDepth(uint32_t bucket_idx, uint8_t l
   // std::cout << "--------- Directory SetLocalDepth::" << "bucket_idx:" << bucket_idx << " local_depth:" <<
   // static_cast<uint32_t>(local_depth) << " ---------\n";
   if (bucket_idx >= this->Size()) {
-    LOG_ERROR("invalid bucket_idx\n");
+    std::cout << Size() << '\n';
+    LOG_ERROR("invalid bucket_idx, %d", bucket_idx);
     return;
   }
   this->local_depths_[bucket_idx] = local_depth;
@@ -145,11 +148,12 @@ void ExtendibleHTableDirectoryPage::SetLocalDepth(uint32_t bucket_idx, uint8_t l
 
 void ExtendibleHTableDirectoryPage::IncrLocalDepth(uint32_t bucket_idx) {
   if (bucket_idx >= this->Size()) {
-    LOG_ERROR("invalid bucket_idx\n");
+    std::cout << Size() << '\n';
+    LOG_ERROR("invalid bucket_idx, %d", bucket_idx);
     return;
   }
   if (this->local_depths_[bucket_idx] == this->global_depth_) {
-    LOG_ERROR("LD==GD, Unable to continue adding\n");
+    LOG_ERROR("LD==GD, Unable to continue adding");
     return;
   }
   this->local_depths_[bucket_idx]++;
@@ -157,11 +161,12 @@ void ExtendibleHTableDirectoryPage::IncrLocalDepth(uint32_t bucket_idx) {
 
 void ExtendibleHTableDirectoryPage::DecrLocalDepth(uint32_t bucket_idx) {
   if (bucket_idx >= this->Size()) {
-    LOG_ERROR("invalid bucket_idx\n");
+    std::cout << Size() << '\n';
+    LOG_ERROR("invalid bucket_idx, %d", bucket_idx);
     return;
   }
   if (this->local_depths_[bucket_idx] == 0) {
-    LOG_ERROR("local_depths_ is 0\n");
+    LOG_ERROR("local_depths_ is 0");
     return;
   }
   this->local_depths_[bucket_idx]--;

@@ -52,7 +52,6 @@ auto ExtendibleHTableBucketPage<K, V, KC>::Insert(const K &key, const V &value, 
   }
   for (size_t i = 0; i < static_cast<size_t>(this->Size()); i++) {
     if (cmp(key, this->array_[i].first) == 0) {
-      LOG_ERROR("试图插入相同的key（调用层应该进行相关判断）");
       return false;
     }
   }

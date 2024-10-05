@@ -66,5 +66,9 @@ class UpdateExecutor : public AbstractExecutor {
 
   /** The child executor to obtain value from */
   std::unique_ptr<AbstractExecutor> child_executor_;
+  bool is_executed_{false};
+  /** pipeline breaker:先保存所有的tuple */
+  std::vector<std::pair<Tuple, RID>> rids_;
 };
+
 }  // namespace bustub

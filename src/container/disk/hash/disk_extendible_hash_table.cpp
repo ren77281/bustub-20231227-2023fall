@@ -54,8 +54,6 @@ DiskExtendibleHashTable<K, V, KC>::DiskExtendibleHashTable(const std::string &na
   }
   auto header_page_ptr = (header_page_guard.AsMut<ExtendibleHTableHeaderPage>());
   header_page_ptr->Init(this->header_max_depth_);
-  // std::cout << "header_max_depth:" << header_max_depth << " directory_max_depth:" << directory_max_depth
-  // << " bucket_max_size:" << bucket_max_size << '\n';
 }
 
 /*****************************************************************************
@@ -64,7 +62,6 @@ DiskExtendibleHashTable<K, V, KC>::DiskExtendibleHashTable(const std::string &na
 template <typename K, typename V, typename KC>
 auto DiskExtendibleHashTable<K, V, KC>::GetValue(const K &key, std::vector<V> *result, Transaction *transaction) const
     -> bool {
-  // std::cout << "G:" << key << " --------\n";
   uint32_t hash = this->Hash(key);
   /** 获取唯一的header_page并加读锁 */
   ReadPageGuard header_page_rguard = bpm_->FetchPageRead(this->header_page_id_);
@@ -85,7 +82,6 @@ auto DiskExtendibleHashTable<K, V, KC>::GetValue(const K &key, std::vector<V> *r
   ReadPageGuard directory_page_rguard = this->bpm_->FetchPageRead(directory_page_id);
   /** 无效页号（不存在的页） */
   if (!directory_page_rguard) {
-    LOG_DEBUG("DiskExtendibleHashTable::GetValue::无效页号: %d", directory_page_id);
     return false;
   }
   auto directory_page_rptr = directory_page_rguard.As<ExtendibleHTableDirectoryPage>();
@@ -109,11 +105,9 @@ auto DiskExtendibleHashTable<K, V, KC>::GetValue(const K &key, std::vector<V> *r
   auto bucket_page_rptr = bucket_page_rguard.As<ExtendibleHTableBucketPage<K, V, KC>>();
   V value;
   if (!bucket_page_rptr->Lookup(key, value, cmp_)) {
-    // std::cout << "-------- GetValue Done --------\n";
     return false;
   }
   result->push_back(std::move(value));
-  // std::cout << "-------- GetValue Done --------\n";
   return true;
 }
 
@@ -124,7 +118,6 @@ auto DiskExtendibleHashTable<K, V, KC>::GetValue(const K &key, std::vector<V> *r
 template <typename K, typename V, typename KC>
 auto DiskExtendibleHashTable<K, V, KC>::Insert(const K &key, const V &value, Transaction *transaction) -> bool {
   std::vector<V> result;
-  std::cout << "I:" << key << "\n";
   if (this->GetValue(key, &result)) {
     return false;
   }
@@ -146,7 +139,6 @@ auto DiskExtendibleHashTable<K, V, KC>::Insert(const K &key, const V &value, Tra
   WritePageGuard directory_page_wguard = this->bpm_->FetchPageWrite(directory_page_id);
   /** 无效页号，先获取header page的写锁，再调用InsertToNewDirectory */
   if (!directory_page_wguard) {
-    LOG_DEBUG("DiskExtendibleHashTable::Insert:: 无效页号 :%d", directory_page_id);
     /** 获取header_page的写指针（设置脏位） */
     auto header_page_wptr = header_page_wguard.AsMut<ExtendibleHTableHeaderPage>();
     return this->InsertToNewDirectory(header_page_wptr, directory_page_idx, hash, key, value);
@@ -203,7 +195,6 @@ auto DiskExtendibleHashTable<K, V, KC>::Insert(const K &key, const V &value, Tra
       LOG_ERROR("无法获取新page");
       return false;
     }
-    std::cout << "写入" << key << "时, 准备进行directory的更新\n";
     this->UpdateDirectoryMapping(directory_page_wptr, split_bucket_page_idx, split_bucket_page_id,
                                  directory_page_wptr->GetLocalDepth(bucket_page_idx));
     /** 初始化新页，准备rehash */
@@ -211,12 +202,10 @@ auto DiskExtendibleHashTable<K, V, KC>::Insert(const K &key, const V &value, Tra
     auto split_bucket_page_wptr = split_bucket_page_wguard.AsMut<ExtendibleHTableBucketPage<K, V, KC>>();
     split_bucket_page_wptr->Init(this->bucket_max_size_);
     /** rehash */
-    std::cout << bucket_page_wptr->Size() << '\n';
     for (size_t i = 0; i < bucket_page_wptr->Size(); i++) {
       K bucket_key = bucket_page_wptr->KeyAt(i);
       V bucket_value = bucket_page_wptr->ValueAt(i);
       uint32_t idx = directory_page_wptr->HashToBucketIndex(this->Hash(bucket_key));
-      // std::cout << bucket_key << ' ' << idx << '\n';
       if (idx == split_bucket_page_idx) {
         bucket_page_wptr->RemoveAt(i);
         split_bucket_page_wptr->Insert(bucket_key, bucket_value, this->cmp_);
@@ -226,22 +215,14 @@ auto DiskExtendibleHashTable<K, V, KC>::Insert(const K &key, const V &value, Tra
         LOG_ERROR("存在意外k-v, split_idx:%d, bucket_idx:%d, idx:%d", split_bucket_page_idx, bucket_page_idx, idx);
       }
     }
-    // std::cout << split_bucket_page_idx << '\n';
-    // split_bucket_page_wptr->PrintBucket();
     /** 分裂完成，继续调用insert */
     /** 调用自己前，先解锁 */
     bucket_page_wguard.Drop();
     split_bucket_page_wguard.Drop();
     directory_page_wguard.Drop();
-    // std::cout << "-------- Insert Again --------\n";
     return this->Insert(key, value, transaction);
   }
-  bucket_page_wptr->Insert(key, value, this->cmp_);
-  // std::cout << bucket_page_idx << '\n';
-  // bucket_page_wptr->PrintBucket();
-  // directory_page_rptr->PrintDirectory();
-  // std::cout << "-------- Insert Done --------\n";
-  return true;
+  return bucket_page_wptr->Insert(key, value, this->cmp_);
 }
 
 /** 子函数不涉及header_page的锁资源管理 */
@@ -283,15 +264,7 @@ auto DiskExtendibleHashTable<K, V, KC>::InsertToNewBucket(ExtendibleHTableDirect
   WritePageGuard new_bucket_page_wguard = new_bucket_page_guard.UpgradeWrite();
   auto new_bucket_page_wptr = new_bucket_page_wguard.AsMut<ExtendibleHTableBucketPage<K, V, KC>>();
   new_bucket_page_wptr->Init(this->bucket_max_size_);
-  if (!new_bucket_page_wptr->Insert(key, value, this->cmp_)) {
-    LOG_ERROR("插入新页时，BucketPage.Insert失败");
-    return false;
-  }
-  // directory->PrintDirectory();
-  // std::cout << bucket_idx << '\n';
-  // new_bucket_page_wptr->PrintBucket();
-  // std::cout << "InsertToNewBucket Done\n";
-  return true;
+  return new_bucket_page_wptr->Insert(key, value, this->cmp_);
 }
 
 /** 该子函数需要在分裂桶时，用来维护directory_page */
@@ -314,7 +287,6 @@ void DiskExtendibleHashTable<K, V, KC>::UpdateDirectoryMapping(ExtendibleHTableD
  *****************************************************************************/
 template <typename K, typename V, typename KC>
 auto DiskExtendibleHashTable<K, V, KC>::Remove(const K &key, Transaction *transaction) -> bool {
-  std::cout << "R:" << key << "\n";
   /** 获取唯一的header_page，并加读锁(Remove操作不会修改header_page) */
   ReadPageGuard header_page_rguard = this->bpm_->FetchPageRead(this->header_page_id_);
   if (!header_page_rguard) {
@@ -357,7 +329,6 @@ auto DiskExtendibleHashTable<K, V, KC>::Remove(const K &key, Transaction *transa
     LOG_DEBUG("不存在的数据，删除失败");
     return false;
   }
-  // std::cout << "Remove succeed\n";
   /** 删除数据完成，释放写锁资源 */
   bucket_page_wguard.Drop();
   while (true) {
@@ -367,6 +338,9 @@ auto DiskExtendibleHashTable<K, V, KC>::Remove(const K &key, Transaction *transa
     auto curr_bucket_page_rptr = curr_bucket_page_rguard.As<ExtendibleHTableBucketPage<K, V, KC>>();
     /** 获取split_bucket的读锁，阻塞其他线程的写操作 */
     uint32_t split_bucket_page_idx = directory_page_wptr->GetSplitImageIndex(bucket_page_idx);
+    if (split_bucket_page_idx == static_cast<uint32_t>(-1)) {
+      break;
+    }
     uint32_t split_bucket_page_id = directory_page_wptr->GetBucketPageId(split_bucket_page_idx);
     ReadPageGuard split_bucket_page_rguard = this->bpm_->FetchPageRead(split_bucket_page_id);
     if (!split_bucket_page_rguard) {
@@ -402,26 +376,17 @@ auto DiskExtendibleHashTable<K, V, KC>::Remove(const K &key, Transaction *transa
       split_bucket_page_rguard.Drop();
     }
     this->bpm_->DeletePage(empty_bucket_page_id);
-    LOG_DEBUG("释放了page_id:%d的资源", empty_bucket_page_id);
-    // std::cout << "合并empty_bucket_page_idx: " << empty_bucket_page_idx
-    // << " non_empty_bucket_page_idx:" << non_empty_bucket_page_idx << '\n';
     /** 将存储了empty_bucket_id的entry修改为non_empty_bucket_page_id，同时修改local_depths_ */
     for (uint32_t idx = std::min(empty_bucket_page_idx, non_empty_bucket_page_idx); idx < directory_page_wptr->Size();
          idx += (1 << depth)) {
       directory_page_wptr->SetBucketPageId(idx, non_empty_bucket_page_id);
       directory_page_wptr->SetLocalDepth(idx, depth);
-      // std::cout << "修改了empty_bucket_idx相关entry\n";
     }
-    /** 合并之后，获取non_empty_bucket的写锁 */
-    // directory_page_wptr->PrintDirectory();
-    // std::cout << "-----------\n";
   }
   /** 尽可能地减少global_depth */
   while (directory_page_wptr->CanShrink()) {
     directory_page_wptr->DecrGlobalDepth();
-    // std::cout << "directory_page_wptr->DecrGlobalDepth(), GD:" << directory_page_wptr->GetGlobalDepth() << '\n';
   }
-  // directory_page_wptr->PrintDirectory();
   return true;
 }
 

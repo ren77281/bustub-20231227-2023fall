@@ -16,9 +16,11 @@
 #include <utility>
 #include <vector>
 
+#include "common/util/hash_util.h"
 #include "binder/table_ref/bound_join_ref.h"
 #include "execution/expressions/abstract_expression.h"
 #include "execution/plans/abstract_plan.h"
+#include "type/type.h"
 
 namespace bustub {
 
@@ -62,7 +64,7 @@ class HashJoinPlanNode : public AbstractPlanNode {
     BUSTUB_ASSERT(GetChildren().size() == 2, "Hash joins should have exactly two children plans.");
     return GetChildAt(1);
   }
-
+  
   /** @return The join type used in the hash join */
   auto GetJoinType() const -> JoinType { return join_type_; };
 

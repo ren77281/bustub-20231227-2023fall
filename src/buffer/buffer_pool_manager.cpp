@@ -100,16 +100,13 @@ auto BufferPoolManager::FetchPage(page_id_t page_id, [[maybe_unused]] AccessType
   }
   frame_id_t frame_id = it->second;
   if (frame_id != -1) {  // 缓存池存在指定页，pin住该页再返回
-    // std::cout << "缓存池存在指定页，pin住该页再返回\n";
     Page *page_ptr = this->pages_ + frame_id;
     this->replacer_->SetEvictable(frame_id, false);
     page_ptr->pin_count_ += 1;
     return page_ptr;
   }
-  // std::cout << "需要从磁盘加载页\n";
   /** 如果页在磁盘中，从磁盘加载Page到BufferPool中 */
   if (!this->free_list_.empty()) {  // 如果有空闲帧
-    // std::cout << "存在空闲帧\n";
     frame_id = this->free_list_.front();
     this->free_list_.pop_front();
   } else {  // 没有空闲帧，试着通过驱逐得到空闲帧
@@ -146,7 +143,7 @@ auto BufferPoolManager::FetchPage(page_id_t page_id, [[maybe_unused]] AccessType
     this->replacer_->RecordAccess(frame_id);
     Page *new_page = this->pages_ + frame_id;
     new_page->page_id_ = page_id;
-    /** 设置帧的不可驱逐，而不可驱逐的帧存储的页应该是被pin住的*/
+    /** 设置帧的不可驱逐，而不可驱逐的帧存储的页应该是被pin住的 */
     this->replacer_->SetEvictable(frame_id, false);
     new_page->pin_count_ += 1;
 
@@ -161,7 +158,6 @@ auto BufferPoolManager::FetchPage(page_id_t page_id, [[maybe_unused]] AccessType
       /** TODO */
       throw Exception("读取失败\n");
     }
-    // std::cout << "FetchPage Done\n";
     return new_page;
   }
   return nullptr;
@@ -221,13 +217,11 @@ auto BufferPoolManager::FlushPage(page_id_t page_id) -> bool {
     throw Exception("刷脏失败，需要回溯状态\n");
   }
   page_ptr->is_dirty_ = false;
-  // std::cout << "FlushPage Done " << page_id << '\n';
   return true;
 }
 
 void BufferPoolManager::FlushAllPages() {
   std::lock_guard<std::mutex> lk(this->latch_);
-  // std::cout << "FlushAllPages\n";
   for (auto &elem : this->page_table_) {
     this->FlushPage(elem.first);
   }
@@ -235,8 +229,6 @@ void BufferPoolManager::FlushAllPages() {
 
 auto BufferPoolManager::DeletePage(page_id_t page_id) -> bool {
   std::lock_guard<std::mutex> lk(this->latch_);
-  // std::cout << "DeletePage: " << page_id << '\n';
-
   /** 无需删除在磁盘中以及被删除了的页 */
   auto it = this->page_table_.find(page_id);
   if (it == this->page_table_.end()) {
